@@ -1,11 +1,9 @@
-import pygame 
-import math 
-from queue import PriorityQueue
+import pygame
 import tkinter as tk
-from tkinter import simpledialog 
+from tkinter import simpledialog
+from queue import PriorityQueue
 
-
-#colors 
+#Constants for colors
 WHITE = (148, 148, 148)
 
 BLACK = (0,0,0)
@@ -18,8 +16,6 @@ ORANGE = (255,165,0)
 GREY = (255,255,255)
 AQUA = (118,238,198)
 
-
-#Node class, each square in the grid will be an instance of this class 
 class Node:
     def __init__(self, row, col, width , total_rows):
         self.row = row
@@ -79,160 +75,163 @@ class Node:
 
         if self.col > 0 and not grid[self.row][self.col - 1].is_obstacle(): #check for left
             self.neighbors.append(grid[self.row][self.col - 1])
-	    
-# the hueristic which simply find the shortest path from one node to another   
-def hueristic(p1, p2):
-    x1, y1 = p1 
-    x2, y2 = p2 
-    return abs(x1 - x2) + abs(y1 - y2)
 
-#draws the path after start node and end node has been selected, and space key entered
-def reconstruct_path(came_from, current, draw):
-	while current in came_from:
-		current = came_from[current]
-		current.set_path()
-		draw()
+class Grid:
+    def __init__(self, rows, width):
+        self.rows = rows
+        self.width = width
+        self.spacing = width // rows
+        self.grid = self.create_grid()
 
-#A Star algorithm
-def algorithm(draw, grid, start, end):
-    count = 0
-    open_set = PriorityQueue()
-    open_set.put((0, count, start))
-    came_from = {}
-    g_score = {}
-    for row in grid:
-        for node in row:
-            g_score[node] = float("inf")
+    def create_grid(self):
+        grid = []
+        for row in range(self.rows):
+            grid.append([])
+            for col in range(self.rows):
+                node = Node(row, col, self.spacing, self.rows)
+                grid[row].append(node)
+        return grid
 
-    g_score[start] = 0
-    f_score = {}
-    for row in grid:
-        for node in row:
-            f_score[node] = float("inf")
+    def draw_grid(self, window):
+        window.fill(WHITE)
+        for row in self.grid:
+            for node in row:
+                node.draw(window)
+        for i in range(self.rows):
+            pygame.draw.line(window, GREY, (0, i * self.spacing), (self.width, i * self.spacing))
+            for x in range(self.rows):
+                pygame.draw.line(window, GREY, (x * self.spacing, 0), (x * self.spacing, self.width))
+        pygame.display.update()
 
-    f_score[start] = hueristic(start.get_position(), end.get_position())
-    open_set_hash = {start}
+    def get_mouse_position(self, pos):
+        y, x = pos
+        row = y // self.spacing
+        col = x // self.spacing
+        return row, col
 
-    while not open_set.empty():
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                pygame.quit()
+class AStarAlgorithm:
+    @staticmethod
+    def hueristic(p1, p2):
+        x1, y1 = p1 
+        x2, y2 = p2 
+        return abs(x1 - x2) + abs(y1 - y2)
 
-        current = open_set.get()[2]
-        open_set_hash.remove(current)
+    @staticmethod
+    def reconstruct_path(came_from, current, draw):
+        while current in came_from:
+            current = came_from[current]
+            current.set_path()
+            draw()
 
-        if current == end:
-            reconstruct_path(came_from, end, draw)
-            end.set_end()
-            return True
+    @staticmethod
+    def a_star(draw, grid, start, end):
+        count = 0
+        open_set = PriorityQueue()
+        open_set.put((0, count, start))
+        came_from = {}
+        g_score = {}
+        for row in grid:
+            for node in row:
+                g_score[node] = float("inf")
 
-        for neighbor in current.neighbors:
-            temp_g_score = g_score[current] + 1
-            if temp_g_score < g_score[neighbor]:
-                came_from[neighbor] = current
-                g_score[neighbor] = temp_g_score
-                f_score[neighbor] = temp_g_score + hueristic(neighbor.get_position(), end.get_position())
-                if neighbor not in open_set_hash:
-                    count += 1
-                    open_set.put((f_score[neighbor], count, neighbor))
-                    open_set_hash.add(neighbor)
-                    neighbor.set_open()
+        g_score[start] = 0
+        f_score = {}
+        for row in grid:
+            for node in row:
+                f_score[node] = float("inf")
 
-        draw()
-        if current != start:
-            current.set_closed()
+        f_score[start] = AStarAlgorithm.hueristic(start.get_position(), end.get_position())
+        open_set_hash = {start}
 
-    return False
+        while not open_set.empty():
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    pygame.quit()
 
-#creates a nested list of nodes
-def create_grid(rows, width):
-    grid = []
-    spacing = width // rows 
-    for row in range(rows):
-        grid.append([])
-        for col in range(rows):
-            node = Node(row, col, spacing, rows)
-            grid[row].append(node)
-   
-    return grid
+            current = open_set.get()[2]
+            open_set_hash.remove(current)
 
-#draws the grid
-def draw(wind, grid, rows, width):
-    spacing = width // rows 
-    wind.fill(WHITE)
-    for row in grid:
-        for node in row:
-            node.draw(wind)
-    for i in range(rows):
-        pygame.draw.line(wind, GREY, (0, i*spacing), (width, i*spacing))
-        for x in range(rows):
-            pygame.draw.line(wind, GREY, (x*spacing, 0), (x*spacing, width))
-    pygame.display.update()
+            if current == end:
+                AStarAlgorithm.reconstruct_path(came_from, end, draw)
+                end.set_end()
+                return True
 
-def get_pos_mouse(pos, rows, width):
-    spacing = width // rows 
-    y, x = pos
-    row = y // spacing
-    col = x // spacing
+            for neighbor in current.neighbors:
+                temp_g_score = g_score[current] + 1
+                if temp_g_score < g_score[neighbor]:
+                    came_from[neighbor] = current
+                    g_score[neighbor] = temp_g_score
+                    f_score[neighbor] = temp_g_score + AStarAlgorithm.hueristic(neighbor.get_position(), end.get_position())
+                    if neighbor not in open_set_hash:
+                        count += 1
+                        open_set.put((f_score[neighbor], count, neighbor))
+                        open_set_hash.add(neighbor)
+                        neighbor.set_open()
 
-    return row, col
+            draw()
+            if current != start:
+                current.set_closed()
 
-def main(wind, width, rows):
-    ROWS = rows
-    grid = create_grid(ROWS, width)
-    start = None
-    end = None 
-    run = True
-    started = False
-    while run:
-        draw(wind, grid, ROWS, width)
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                run = False
-            if started:
-                continue 
-            #mouse button left click
-            if pygame.mouse.get_pressed()[0]:
-                pos = pygame.mouse.get_pos()
-                row, col = get_pos_mouse(pos, ROWS, width)
-                node = grid[row][col]
-                if not start and node != end:
-                    start = node
-                    start.create_start()
-                elif not end and node != start:
-                    end = node
-                    end.set_end()
-                elif node != end and node != start:
-                    node.set_obstacle()
-            #mouse button right click
-            elif pygame.mouse.get_pressed()[2]:
-                pos = pygame.mouse.get_pos()
-                row, col = get_pos_mouse(pos, ROWS, width)
-                node = grid[row][col]
-                node.reset()
-                if node == start:
-                    start = None
-                elif node == end:
-                    end = None
-            #key is pressed or released on keyboard       
-            if event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_SPACE and start and end:
-                    for row in grid:
-                        for node in row:
-                            node.update_neighbor(grid)
-                    #run the main algorithm
-                    algorithm(lambda: draw(wind, grid, ROWS, width), grid, start, end)
+        return False
 
-                if event.key == pygame.K_c:
-                    start = None
-                    end = None
-                    grid = create_grid(ROWS, width)
-    pygame.quit()
+
+class MainApp:
+    def __init__(self, window, width, rows):
+        self.window = window
+        self.width = width
+        self.rows = rows
+        self.grid = Grid(rows, width)
+        self.start = None
+        self.end = None
+        self.run = True
+        self.started = False
+
+    def run_app(self):
+        pygame.init()  # initialize Pygame
+        while self.run:
+            self.grid.draw_grid(self.window)
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    self.run = False
+                if self.started:
+                    continue
+                if pygame.mouse.get_pressed()[0]:
+                    pos = pygame.mouse.get_pos()
+                    row, col = self.grid.get_mouse_position(pos)
+                    node = self.grid.grid[row][col]
+                    if not self.start and node != self.end:
+                        self.start = node
+                        self.start.create_start()
+                    elif not self.end and node != self.start:
+                        self.end = node
+                        self.end.set_end()
+                    elif node != self.end and node != self.start:
+                        node.set_obstacle()
+                elif pygame.mouse.get_pressed()[2]:
+                    pos = pygame.mouse.get_pos()
+                    row, col = self.grid.get_mouse_position(pos)
+                    node = self.grid.grid[row][col]
+                    node.reset()
+                    if node == self.start:
+                        self.start = None
+                    elif node == self.end:
+                        self.end = None
+                if event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_SPACE and self.start and self.end:
+                        for row in self.grid.grid:
+                            for node in row:
+                                node.update_neighbor(self.grid.grid)
+                        AStarAlgorithm.a_star(lambda: self.grid.draw_grid(self.window), self.grid.grid, self.start, self.end)
+                    if event.key == pygame.K_c:
+                        self.start = None
+                        self.end = None
+                        self.grid = Grid(self.rows, self.width)
+        pygame.quit()  # quit Pygame 
 
 def get_number_of_rows():
     root = tk.Tk()
     root.withdraw()
-    while True:  
+    while True: 
         rows = simpledialog.askinteger("A* PathFinder", "Enter the number of rows you want (Must be between 5 and 100):")
         if rows is not None and rows in range(5, 101):
             return rows
@@ -240,11 +239,13 @@ def get_number_of_rows():
             print("Please enter a positive integer.")
         elif rows is None:
             root.destroy()
-        
 
-ROWS = get_number_of_rows()
-if ROWS is not None:
-    width = 800
-    window = pygame.display.set_mode((width, width))
-    pygame.display.set_caption("A* PathFinder")
-    main(window, width, ROWS)
+if __name__ == "__main__":
+    ROWS = get_number_of_rows()
+    if ROWS is not None:
+        width = 800
+        window = pygame.display.set_mode((width, width))
+        pygame.display.set_caption("A* PathFinder")
+        app = MainApp(window, width, ROWS)
+        app.run_app()
+        pygame.quit()
